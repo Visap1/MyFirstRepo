@@ -1,0 +1,600 @@
+---
+title: "Lab 1 Assigment"
+author: "Victor S Phiri"
+date: "12/8/2021"
+output:
+  word_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# Load packages
+
+```{r}
+library(tidyverse)
+library(psych)
+library(gridExtra)
+library(readr)
+library(pscl) # for pR2
+library(lmtest) # for lrtest
+library(Amelia)
+library(dominanceanalysis) # for dominanceAnalysis()
+library(broom)
+library(knitr)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+```
+
+## Load the Titanic Dataset
+
+```{r}
+getwd()
+
+Titanic_tadabase=read_csv("https://raw.githubusercontent.com/kekecsz/SIMM61-Course-materials/main/Home_assignment/Titanic%20-%20training%20set.csv")
+
+```
+
+## View data
+
+```{r pressure, echo=FALSE}
+str(Titanic_tadabase)
+```
+
+Record variable
+
+```{r}
+Clean_Titanic<- Titanic_tadabase %>%
+  mutate(Pclass = factor(Pclass, levels = c(1, 2, 3), labels = c('First Class', 'Second Class', 'Third Class')),
+	Survived = factor(Survived, levels = c(0, 1), labels = c('No', 'Yes')))
+  
+```
+
+Select variables
+
+```{r}
+
+ Titanic_Selected <- Clean_Titanic %>% 
+  select(Age,
+         Sex,
+         Pclass,
+         Parch,
+         Survived,
+         SibSp)
+
+```
+
+# Checking the data
+
+The data has 891 observations the Age column has missing values
+representing 3% of the database
+
+```{r}
+
+ str(Titanic_Selected) # it will help us to understand our variables and also identify NAs 
+   
+#install.packages("Amelia")
+ 
+missmap(Titanic_Selected, main = "missing values vs oberved") # assess the presence of  missing values in the database  
+
+```
+
+Remove NAs from the dataset We drop missing values, hence, remain with
+714 observations. we use missmap to visualize our data again
+
+```{r}
+# create a new dataset without NAs called Final titanic data
+
+Final_titanic_data<- Titanic_Selected %>% drop_na()
+
+missmap(Final_titanic_data, main = "missing values vs oberved") # check if the all the missing values have been removed 
+
+str(Final_titanic_data)
+ summary(Final_titanic_data)
+ 
+```
+
+Getting details of the data
+
+59% not survived and 41% survived
+
+```{r}
+# survival rates 
+
+prop.table(table(Final_titanic_data$Survived))
+
+
+```
+
+Data Visualization Visualize survival rates
+
+```{r}
+ Final_titanic_data %>%
+ggplot() +
+aes(x = Survived) +
+  geom_bar(aes(y = (..count..)/sum(..count..), fill=factor(Survived)), stat= "count")+
+  geom_text(aes(label = scales::percent(round((..count..)/sum(..count..),2)),
+                y= ((..count..)/sum(..count..))), stat="count",
+            vjust = -.25) +
+  ggtitle("Survived") + labs(y = "percent")
+
+
+
+```
+
+Survival Rates by Sex
+
+The graph show high death rate among men than women
+
+```{r}
+ 
+Final_titanic_data %>%
+ggplot() +
+aes(x = Sex, fill = Survived) +
+geom_bar()+
+  theme_get()
+labs(y="passanger count",
+       title = "Titanic Survival Rates by Sex")
+
+```
+
+#### Titanic Survival Rates by Age by Passenger class 
+
+Death toll was high among men in class three and also the rate of women
+who died was higher than other classes
+
+```{r}
+ 
+ Final_titanic_data %>%
+ggplot() +
+aes(x = Age, fill = Survived) +
+theme_dark()+
+facet_wrap(Sex~Pclass)+
+geom_histogram()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Age by Passanger class")
+ 
+```
+
+#### Class by Passenger class
+
+the data shows that the survival rates were very low in class three as
+compared to passenger classes(one and two)
+
+```{r}
+
+Final_titanic_data %>%
+ggplot() +
+aes(x = Pclass, fill = Survived) +
+geom_bar()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Passanger class")
+ 
+ 
+```
+
+#### Examine survival rate by gender by passenger class 
+
+\# data show that there were more males that perished in the third class
+than other classes, \# the number of females were relatively higher in
+class the upper class when compared to other classes
+
+```{r}
+Final_titanic_data %>%
+ggplot() +
+aes(x = Sex, fill = Survived) +
+theme_bw()+
+facet_wrap(~Pclass)+
+geom_bar()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Gender by Passanger class") 
+ 
+```
+
+#### Survival rate with sibling and or spouse by class
+
+```{r}
+ 
+Final_titanic_data %>%
+ggplot() +
+aes(x = SibSp, fill = Survived) +
+theme_dark()+
+facet_wrap(~Pclass)+
+geom_bar()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Gender by Passanger class") 
+ 
+ 
+```
+
+#### Titanic Survival chat
+
+\
+Passenger class by Parch There was a lower chance of survival for those
+who were with family in the third class
+
+```{r}
+Final_titanic_data%>%
+ggplot() +
+aes(x = Parch, fill = Survived) +
+theme_classic()+
+facet_wrap(~Pclass)+
+geom_bar()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Age by Passanger class by Parch")
+ 
+```
+
+# Design the regression model: 
+
+The previous steps has enabled us assess our data and come up with the
+following model. Outcome valuable: Survived\
+Predictors: Sex, Passenger Class(Pclass), Age, Siblings or Spouse(Sibsp)
+and Parent/child(Parch)
+
+```{r}
+ mod1 = glm(Survived~ Sex+Pclass+Age+SibSp+Parch,
+family = binomial(), data = Final_titanic_data)
+
+summary(mod1)
+
+ 
+
+```
+
+We created a table to present the coefficients clearly 
+
+```{r}
+
+xt<-xtable(summary(mod1))
+print(xt,type = "html")%>%
+  kable()
+
+```
+
+Calculate probabilities for Kate and Sue survival Kate Survival without
+Leonard
+
+```{r}
+ # Regression equation 
+
+Kate_Survival_Odds=4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*20+(-0.37)*0+(-0.04)*1
+
+
+Kate_probality= exp(Kate_Survival_Odds)/(1+ exp(Kate_Survival_Odds))*100 # probability 
+ 
+
+print(Kate_Survival_Odds)
+print(Kate_probality)
+
+ 
+```
+
+Kate Survival with Leonard
+
+```{r}
+
+Kate_Leo=4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*20+(-0.37)*1+(-0.04)*1
+
+# Odds 
+Odds_Kate_Leo= exp(Kate_Leo) # survival Odds for Kate 
+
+Kate_Leo_probality= Odds_Kate_Leo/(1+ Odds_Kate_Leo)*100  # probability for Kate with Leonard
+
+print(Odds_Kate_Leo)
+print(Kate_Leo_probality)
+
+```
+
+Sue survival without Leonard
+
+```{r}
+#
+#Odds without her father 
+Sue_SurvivalOdds = 4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*4+(-0.37)*0+(-0.04)*1
+ 
+Sue_Probality=exp(Sue_SurvivalOdds)/(1+exp(Sue_SurvivalOdds))*100
+print(Sue_Probality)
+ 
+```
+
+Sue survival probability with Leonard on board
+
+```{r}
+Sue_Leonard = 4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*4+(-0.37)*0+(-0.04)*2
+ 
+
+
+Probalility_Sue_Leo=exp(Sue_Leonard)/(1+ exp(Sue_Leonard))*100 
+
+print(Sue_Leonard)
+print(Probalility_Sue_Leo)
+```
+
+# Model Performance
+
+We use the R2 function to asses the performance of our model and the
+null model. "pscl package".
+
+The model has(-318.22 llh) which is bigger than the Null model(-482.26
+llhNull). This implies that our model is better than the null model.
+
+```{r}
+
+  pR2(mod1)
+head(predict(mod1))
+ 
+```
+
+#### Deviance
+
+It can be seen from our data below that the our model has less
+error(636.46) as compared to the Null model which has higher
+deviance(964.52 llh)
+
+```{r}
+   # 2ll deviance 
+pR2(mod1)["llh"] * -2 # alternative model 
+ 
+```
+
+#### Predicting accuracy for categorization
+
+```{r}
+
+Final_titanic_data = Final_titanic_data %>%
+mutate(pred_mod1 = predict(mod1)) %>%
+mutate(pred_mod1 = case_when(pred_mod1 <= 0.5 ~"No",
+pred_mod1 > 0.5 ~ "Yes"))
+ 
+```
+
+#### Cording correct cases
+
+A new variable will be added to the our final titanic dataset as shown
+below;
+
+we shall use mutate and case_when function
+
+```{r}
+
+ Final_titanic_data = Final_titanic_data %>%
+  mutate(correct_prediction=case_when(pred_mod1 == Survived  ~ "correct",
+                                      pred_mod1 != Survived ~ "incorrect"))
+
+```
+
+#### Check the model prediction performance
+
+The model has 81% prediction rate(579 out of 714 cases) and 19%
+incorrect predictions
+
+```{r}
+ 
+Final_titanic_data %>%
+group_by(correct_prediction) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count))
+
+
+```
+
+# compute the null model; 
+
+this will be used to compare the data with the data predicted by our
+model.
+
+  
+
+```{r}
+mod_null = glm(Survived ~ 1, family = binomial(), data = Final_titanic_data)
+
+summary(mod_null)
+
+```
+
+
+The null model
+
+```{r}
+
+Final_titanic_data %>%
+group_by(Survived) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count))
+ 
+```
+
+compare the predictions of the null model with the alternative model
+
+```{r}
+
+Final_titanic_data%>%
+group_by(Survived, pred_mod1) %>%
+summarize(n = n()) %>%
+spread(Survived, n)
+
+
+```
+
+### check for the prediction of Survival rate by response category(Survived= Yes/No)
+
+63% of survivors were correctly predicted. However, 36% were wrongly
+predicted. Further this prediction does not meet our required target of
+72%.
+
+```{r}
+
+Final_titanic_data %>%
+filter(Survived == "Yes") %>%
+group_by(correct_prediction) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count))
+
+```
+
+#### Predictions for those who died
+
+our model had 92% correct prediction and 7% incorrect predictions
+
+```{r}
+
+
+Final_titanic_data %>%
+filter(Survived == "No") %>%
+group_by(correct_prediction) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count))
+
+```
+
+# Adjusting our model
+Since our model did not give meet the required minimum prediction of 72% for for both cases, 
+
+We adjusted our model by changing the cut off point from 0.5 to 0
+
+```{r}
+  
+Final_titanic_data = Final_titanic_data %>%
+mutate(pred_mod1_ajusted = predict(mod1)) %>%
+mutate(pred_mod1_ajusted = case_when(pred_mod1_ajusted <= 0 ~"No",
+pred_mod1_ajusted > 0 ~ "Yes"))
+ 
+```
+
+# coding correct guesses
+
+```{r}
+ 
+Final_titanic_data = Final_titanic_data %>%
+  mutate(correct_prediction_Ajusted=case_when(pred_mod1_ajusted == Survived  ~ "correct",
+                                      pred_mod1_ajusted != Survived ~ "incorrect"))
+ 
+```
+
+# correct categorization rate overall
+
+ The adjusted model has 81% overall observations 
+
+```{r message=FALSE, results='asis'}
+  
+Final_titanic_data %>%
+group_by(correct_prediction_Ajusted) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count))
+ 
+```
+
+# correctly categorized as Survived(Yes)
+
+73% of the cases were correctly predicted 
+
+```{r}
+
+Final_titanic_data %>%
+filter(Survived == "Yes") %>%
+group_by(correct_prediction_Ajusted) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count))
+
+```
+
+# correctly categorized as Not Survived(No)
+
+86% were correctly predicted 
+
+```{r}
+
+ Final_titanic_data %>%
+filter(Survived == "No") %>%
+group_by(correct_prediction_Ajusted) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count))
+ 
+```
+
+#Comparing our model with the null model 
+
+The data shows that our model is significantly better than the null model. 
+with log of likelihood -318.23 which is better than -482.26(Null model). Further our model has a significant Pvalue as shown below 
+
+```{r}
+ lrtest(mod_null, mod1)
+ 
+```
+#model fit 
+
+The AIC for the model is 650.46 which is lower than 966.52 for the null model as shown in the output below 
+
+```{r}
+
+ AIC(mod_null, mod1)
+ 
+```
+
+```{r}
+exp(coef(mod1))
+
+```
+
+#Dominance Analysis 
+
+```{r message=FALSE, results='asis'}
+
+Dominance_Mod1<-dominanceAnalysis(mod1)
+
+contributionByLevel(Dominance_Mod1, fit.functions="r2.m")
+
+```
+# Average contribution of predictors 
+
+We conclude from our findings that Sex(0.21) is the main predictor of Survival outcome, followed by Passenger class(0.11), Age(0.02), Sibling or spouse(0.01), and parent or child(0.00)
+
+note(above figures have been round to two decimal places)
+
+```{r}
+
+averageContribution(Dominance_Mod1,fit.functions = "r2.m")
+   
+
+```
+
+The 
+
+
+```{r}
+
+plot(Dominance_Mod1, which.graph ="conditional",fit.function = "r2.m")
+
+
+
+```
+
+
+
+```{r}
+plot(Dominance_Mod1, which.graph ="general",fit.function = "r2.m")
+
+
+```
+Presentation of summary table 
+
+```{r}
+ library(stargazer)
+
+
+tab_model(mod1,show.se =  FALSE, show.std = TRUE, show.stat = TRUE,show.est = TRUE, 
+           show.aic = TRUE,show.dev = TRUE, 
+           show.loglik=TRUE)
+
+
+```
+
+
+```{r}
+
+
+```
+
