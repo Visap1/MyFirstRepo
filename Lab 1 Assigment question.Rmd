@@ -582,8 +582,7 @@ plot(Dominance_Mod1, which.graph ="general",fit.function = "r2.m")
 Presentation of summary table 
 
 ```{r}
- library(stargazer)
-
+  
 
 tab_model(mod1,show.se =  FALSE, show.std = TRUE, show.stat = TRUE,show.est = TRUE, 
            show.aic = TRUE,show.dev = TRUE, 
