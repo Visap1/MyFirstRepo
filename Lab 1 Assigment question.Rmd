@@ -12,7 +12,7 @@ editor_options:
 
 # Load packages
 
-```{r}
+```{r message=FALSE, include=FALSE}
 library(tidyverse)
 library(psych)
 library(gridExtra)
@@ -26,11 +26,24 @@ library(knitr)
 library(sjPlot)
 library(sjmisc)
 library(sjlabelled)
+library(modelsummary)
+library(xtable)
+```
+
+custom function for adding oods ratios to the regression output
+```{r}
+summary_or <- function(m) {
+  s <- summary(m)
+  s$coefficients <- cbind(exp(s$coefficients[,1]), s$coefficients)
+  colnames(s$coefficients)[1] <- "Odds Ratio"
+  return(s)
+}
+
 ```
 
 ## Load the Titanic Dataset
 
-```{r}
+```{r include=FALSE}
 getwd()
 
 Titanic_tadabase=read_csv("https://raw.githubusercontent.com/kekecsz/SIMM61-Course-materials/main/Home_assignment/Titanic%20-%20training%20set.csv")
@@ -39,7 +52,7 @@ Titanic_tadabase=read_csv("https://raw.githubusercontent.com/kekecsz/SIMM61-Cour
 
 ## View data
 
-```{r pressure, echo=FALSE}
+```{r pressure, include=FALSE}
 str(Titanic_tadabase)
 ```
 
@@ -96,15 +109,18 @@ str(Final_titanic_data)
  
 ```
 
-Getting details of the data
+# data visualization 
 
-59% not survived and 41% survived
+proportion of survivors by gender 
+
 
 ```{r}
 # survival rates 
 
 prop.table(table(Final_titanic_data$Survived))
 
+ggplot(Final_titanic_data, aes(x=Sex,fill=Survived))+ geom_bar(position = "dodge") + geom_text(stat='count',aes(label=..count..),position = position_dodge(0.9),vjust=-0.2) +
+ylab("Number of Passengers")
 
 ```
 
@@ -122,6 +138,7 @@ aes(x = Survived) +
 
 
 
+
 ```
 
 Survival Rates by Sex
@@ -130,14 +147,13 @@ The graph show high death rate among men than women
 
 ```{r}
  
-Final_titanic_data %>%
-ggplot() +
-aes(x = Sex, fill = Survived) +
-geom_bar()+
-  theme_get()
-labs(y="passanger count",
-       title = "Titanic Survival Rates by Sex")
+ggplot(Final_titanic_data, aes(x=Sex,fill=Survived))+ geom_bar(position = "dodge") + geom_text(stat='count',aes(label=..count..),position = position_dodge(0.9),vjust=-0.2) +
+ylab("Number of Passengers")
 
+```
+```{r}
+ggplot(Final_titanic_data, aes(x=Pclass,fill=Survived))+ geom_bar(position = "dodge") + geom_text(stat='count',aes(label=..count..),position = position_dodge(0.9),vjust=-0.2) +
+ylab("Number of Passengers") + xlab("Passenger Class")
 ```
 
 #### Titanic Survival Rates by Age by Passenger class 
@@ -177,8 +193,8 @@ labs(y="passanger count",
 
 #### Examine survival rate by gender by passenger class 
 
-\# data show that there were more males that perished in the third class
-than other classes, \# the number of females were relatively higher in
+data show that there were more males that perished in the third class
+than other classes, the number of females were relatively higher in
 class the upper class when compared to other classes
 
 ```{r}
@@ -211,7 +227,6 @@ labs(y="passanger count",
 
 #### Titanic Survival chat
 
-\
 Passenger class by Parch There was a lower chance of survival for those
 who were with family in the third class
 
@@ -235,22 +250,14 @@ Predictors: Sex, Passenger Class(Pclass), Age, Siblings or Spouse(Sibsp)
 and Parent/child(Parch)
 
 ```{r}
- mod1 = glm(Survived~ Sex+Pclass+Age+SibSp+Parch,
+Tmod1 = glm(Survived~ Sex+Pclass+Age+SibSp+Parch,
 family = binomial(), data = Final_titanic_data)
-
-summary(mod1)
-
- 
-
+summary(Tmod1)
 ```
 
-We created a table to present the coefficients clearly 
 
 ```{r}
-
-xt<-xtable(summary(mod1))
-print(xt,type = "html")%>%
-  kable()
+coefficients(Tmod1)
 
 ```
 
@@ -259,32 +266,34 @@ Leonard
 
 ```{r}
  # Regression equation 
-
-Kate_Survival_Odds=4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*20+(-0.37)*0+(-0.04)*1
-
-
-Kate_probality= exp(Kate_Survival_Odds)/(1+ exp(Kate_Survival_Odds))*100 # probability 
  
-
-print(Kate_Survival_Odds)
-print(Kate_probality)
-
+log_odds1 =4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*20+(-0.37)*0+(-0.04)*1 # log odds 
  
+odds1<- exp(log_odds1)# odds 
+
+Kate_probability1= odds1/(1+ odds1)*100# probability 
+
+
+log_odds1
+odds1
+Kate_probability1
+
+
 ```
 
 Kate Survival with Leonard
 
 ```{r}
 
-Kate_Leo=4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*20+(-0.37)*1+(-0.04)*1
+log_odds2=4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*20+(-0.37)*1+(-0.04)*1 #log odds
+Odds2=exp(log_odds2)# odds 
 
-# Odds 
-Odds_Kate_Leo= exp(Kate_Leo) # survival Odds for Kate 
+Kate_probability_with_Leo=  Odds2/(1+Odds2)*100 #probability 
 
-Kate_Leo_probality= Odds_Kate_Leo/(1+ Odds_Kate_Leo)*100  # probability for Kate with Leonard
 
-print(Odds_Kate_Leo)
-print(Kate_Leo_probality)
+log_odds2
+Odds2
+Kate_probability_with_Leo
 
 ```
 
@@ -293,24 +302,30 @@ Sue survival without Leonard
 ```{r}
 #
 #Odds without her father 
-Sue_SurvivalOdds = 4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*4+(-0.37)*0+(-0.04)*1
- 
-Sue_Probality=exp(Sue_SurvivalOdds)/(1+exp(Sue_SurvivalOdds))*100
-print(Sue_Probality)
+log_odds3 = 4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*4+(-0.37)*0+(-0.04)*1
+Odds3=exp(log_odds3)
+Sue_Probality_without_leo=Odds3/(1+Odds3)*100
+
+log_odds3
+Odds3
+Sue_Probality_without_leo 
  
 ```
 
 Sue survival probability with Leonard on board
 
 ```{r}
-Sue_Leonard = 4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*4+(-0.37)*0+(-0.04)*2
+log_odds4 = 4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*4+(-0.37)*0+(-0.04)*2
+
+Odds4=exp(log_odds4)
+
+Probalility_Sue_Leo=Odds4/(1+ Odds4)*100 
+
+log_odds4
+Odds4
+Probalility_Sue_Leo
  
-
-
-Probalility_Sue_Leo=exp(Sue_Leonard)/(1+ exp(Sue_Leonard))*100 
-
-print(Sue_Leonard)
-print(Probalility_Sue_Leo)
+ 
 ```
 
 # Model Performance
@@ -323,8 +338,9 @@ llhNull). This implies that our model is better than the null model.
 
 ```{r}
 
-  pR2(mod1)
-head(predict(mod1))
+  pR2(Tmod1)%>%round(2)
+
+head(predict(Tmod1))
  
 ```
 
@@ -336,7 +352,7 @@ deviance(964.52 llh)
 
 ```{r}
    # 2ll deviance 
-pR2(mod1)["llh"] * -2 # alternative model 
+pR2(Tmod1)["llh"] * -2 # alternative model 
  
 ```
 
@@ -345,9 +361,9 @@ pR2(mod1)["llh"] * -2 # alternative model
 ```{r}
 
 Final_titanic_data = Final_titanic_data %>%
-mutate(pred_mod1 = predict(mod1)) %>%
-mutate(pred_mod1 = case_when(pred_mod1 <= 0.5 ~"No",
-pred_mod1 > 0.5 ~ "Yes"))
+mutate(pred_Tmod1 = predict(Tmod1)) %>%
+mutate(pred_Tmod1 = case_when(pred_Tmod1 <= 0.5 ~"No",
+pred_Tmod1 > 0.5 ~ "Yes"))
  
 ```
 
@@ -361,8 +377,8 @@ we shall use mutate and case_when function
 ```{r}
 
  Final_titanic_data = Final_titanic_data %>%
-  mutate(correct_prediction=case_when(pred_mod1 == Survived  ~ "correct",
-                                      pred_mod1 != Survived ~ "incorrect"))
+  mutate(correct_prediction=case_when(pred_Tmod1 == Survived  ~ "correct",
+                                      pred_Tmod1 != Survived ~ "incorrect"))
 
 ```
 
@@ -376,7 +392,7 @@ incorrect predictions
 Final_titanic_data %>%
 group_by(correct_prediction) %>%
 summarise(count = n()) %>%
-mutate(freq = count / sum(count))
+mutate(freq = count / sum(count)) 
 
 
 ```
@@ -403,7 +419,7 @@ The null model
 Final_titanic_data %>%
 group_by(Survived) %>%
 summarise(count = n()) %>%
-mutate(freq = count / sum(count))
+mutate(freq = count / sum(count)) 
  
 ```
 
@@ -412,7 +428,7 @@ compare the predictions of the null model with the alternative model
 ```{r}
 
 Final_titanic_data%>%
-group_by(Survived, pred_mod1) %>%
+group_by(Survived, pred_Tmod1) %>%
 summarize(n = n()) %>%
 spread(Survived, n)
 
@@ -431,7 +447,7 @@ Final_titanic_data %>%
 filter(Survived == "Yes") %>%
 group_by(correct_prediction) %>%
 summarise(count = n()) %>%
-mutate(freq = count / sum(count))
+mutate(freq = count / sum(count))%>%kable(digits = 2)
 
 ```
 
@@ -446,7 +462,7 @@ Final_titanic_data %>%
 filter(Survived == "No") %>%
 group_by(correct_prediction) %>%
 summarise(count = n()) %>%
-mutate(freq = count / sum(count))
+mutate(freq = count / sum(count))%>%kable(digits = 2)
 
 ```
 
@@ -458,9 +474,9 @@ We adjusted our model by changing the cut off point from 0.5 to 0
 ```{r}
   
 Final_titanic_data = Final_titanic_data %>%
-mutate(pred_mod1_ajusted = predict(mod1)) %>%
-mutate(pred_mod1_ajusted = case_when(pred_mod1_ajusted <= 0 ~"No",
-pred_mod1_ajusted > 0 ~ "Yes"))
+mutate(pred_Tmod1_ajusted = predict(Tmod1)) %>%
+mutate(pred_Tmod1_ajusted = case_when(pred_Tmod1_ajusted <= 0 ~"No",
+pred_Tmod1_ajusted > 0 ~ "Yes"))
  
 ```
 
@@ -469,8 +485,8 @@ pred_mod1_ajusted > 0 ~ "Yes"))
 ```{r}
  
 Final_titanic_data = Final_titanic_data %>%
-  mutate(correct_prediction_Ajusted=case_when(pred_mod1_ajusted == Survived  ~ "correct",
-                                      pred_mod1_ajusted != Survived ~ "incorrect"))
+  mutate(correct_prediction_Ajusted=case_when(pred_Tmod1_ajusted == Survived  ~ "correct",
+                                      pred_Tmod1_ajusted != Survived ~ "incorrect"))
  
 ```
 
@@ -483,7 +499,7 @@ Final_titanic_data = Final_titanic_data %>%
 Final_titanic_data %>%
 group_by(correct_prediction_Ajusted) %>%
 summarise(count = n()) %>%
-mutate(freq = count / sum(count))
+mutate(freq = count / sum(count))%>%kable(digits = 2)
  
 ```
 
@@ -497,7 +513,7 @@ Final_titanic_data %>%
 filter(Survived == "Yes") %>%
 group_by(correct_prediction_Ajusted) %>%
 summarise(count = n()) %>%
-mutate(freq = count / sum(count))
+mutate(freq = count / sum(count))%>%kable(caption="Correctly Predicted Cases Yes",digits = 2)
 
 ```
 
@@ -511,7 +527,7 @@ mutate(freq = count / sum(count))
 filter(Survived == "No") %>%
 group_by(correct_prediction_Ajusted) %>%
 summarise(count = n()) %>%
-mutate(freq = count / sum(count))
+mutate(freq = count / sum(count))%>%kable(digits = 2)
  
 ```
 
@@ -521,7 +537,7 @@ The data shows that our model is significantly better than the null model.
 with log of likelihood -318.23 which is better than -482.26(Null model). Further our model has a significant Pvalue as shown below 
 
 ```{r}
- lrtest(mod_null, mod1)
+ lrtest(mod_null, Tmod1)
  
 ```
 #model fit 
@@ -530,12 +546,12 @@ The AIC for the model is 650.46 which is lower than 966.52 for the null model as
 
 ```{r}
 
- AIC(mod_null, mod1)
+ AIC(mod_null, Tmod1)
  
 ```
 
 ```{r}
-exp(coef(mod1))
+exp(coef(Tmod1))
 
 ```
 
@@ -543,9 +559,9 @@ exp(coef(mod1))
 
 ```{r message=FALSE, results='asis'}
 
-Dominance_Mod1<-dominanceAnalysis(mod1)
+Dominance_TMod1<-dominanceAnalysis(Tmod1)
 
-contributionByLevel(Dominance_Mod1, fit.functions="r2.m")
+contributionByLevel(Dominance_TMod1, fit.functions="r2.m")
 
 ```
 # Average contribution of predictors 
@@ -556,17 +572,17 @@ note(above figures have been round to two decimal places)
 
 ```{r}
 
-averageContribution(Dominance_Mod1,fit.functions = "r2.m")
+averageContribution(Dominance_TMod1,fit.functions = "r2.m")
    
 
 ```
 
-The 
+Graph conditional dominance Analysis 
 
 
 ```{r}
 
-plot(Dominance_Mod1, which.graph ="conditional",fit.function = "r2.m")
+plot(Dominance_TMod1, which.graph ="conditional",fit.function = "r2.m")
 
 
 
@@ -575,25 +591,36 @@ plot(Dominance_Mod1, which.graph ="conditional",fit.function = "r2.m")
 
 
 ```{r}
-plot(Dominance_Mod1, which.graph ="general",fit.function = "r2.m")
+plot(Dominance_TMod1, which.graph ="general",fit.function = "r2.m")
 
 
 ```
 Presentation of summary table 
 
 ```{r}
-  
-
-tab_model(mod1,show.se =  FALSE, show.std = TRUE, show.stat = TRUE,show.est = TRUE, 
+tab_model(Tmod1,show.se = FALSE,p.style = "numeric",
+          show.ci=0.95,show.std =TRUE, 
+          show.stat = TRUE,show.est = TRUE, 
            show.aic = TRUE,show.dev = TRUE, 
-           show.loglik=TRUE)
-
-
+           show.loglik=TRUE,title = "Summary table")
 ```
 
 
 ```{r}
+tab_model(Tmod1,CSS = list(css.depvarhead = '+color: red;',css.firsttablecol = 'font-weight: bold;',css.summary = 'color: blue;',css.est=TRUE))
+```
 
+
+```{r}
+ 
+report_tmd1<-summary_or(Tmod1)
+
+xtable(coefficients(report_tmd1))%>%kable( digits = 2)
+ 
+ 
 
 ```
+
+
+
 
