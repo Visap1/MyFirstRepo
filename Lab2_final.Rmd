@@ -5,7 +5,7 @@ date: "1/4/2022"
 output: word_document
 output:output:
   pdf_document: null
-  html_document: pdf
+  html_document: "word"
 ---
 
 # Lord packages {#lord-packages}
@@ -160,7 +160,9 @@ we shall call our model, mod_RI
 
 ```{r echo=TRUE}
 
-mod_RI<- lmer(pain~sex+age+cortisol_serum+ STAI_trait+pain_cat+mindfulness+(1|hospital), data = surgery_data_A) 
+mod_RI<- lmer(pain~sex+age+cortisol_serum+ STAI_trait+pain_cat+mindfulness+(1|hospital), data = surgery_data_A)
+
+
 summary(mod_RI)
 ```
 
@@ -179,8 +181,6 @@ To check for R2 for our Fixed effect predictors, we used the`R2beta`. our output
 ```{r echo=TRUE}
 r2beta(mod_RI,method ="nsj",data =surgery_data_A)
 
-
-stdCoef.merMod(mod_RI)
  
 ```
 
@@ -189,6 +189,7 @@ using this method, our fixed effect predictors explained 39% of the variance whi
 ```{r echo=TRUE}
 
 r.squaredGLMM(mod_RI)
+
 
 ```
 
@@ -249,45 +250,77 @@ Random slop model cortisol_serum was noted in our previous model as the most inf
 Random Slop model
 
 ```{r}
+new.Rand_Int<-lmer(pain ~ cortisol_serum + (1|hospital),data = surgery_data_A)
+new.Rand_Int
+
 Mod2_RS=lmer(pain ~ cortisol_serum  + ( cortisol_serum|hospital),data = surgery_data_A)
-summary(Mod2_RS)
+Mod2_RS
+
+
 
 ```
 
-create new object.
+#check model fit 
+we compare the model fit of our two models 
+
+```{r}
+sum(residuals(new.Rand_Int)^2)
+sum(residuals(Mod2_RS)^2)
+```
+
+```{r echo=TRUE}
+
+cAIC(new.Rand_Int)$caic
+
+cAIC(Mod2_RS)$caic
+
+anova(Mod2_RS,new.Rand_Int)
+
+```
+
+
+
+Add predicted values to b
 
 ```{r}
  
 surgery_data_A=surgery_data_A%>%
-mutate(pred_int =predict(mod_RI),pred_slope =predict(Mod2_RS))
+mutate(pred_int =predict(mod_RI),pred_slope =predict(Mod2_RS),pred_new_rand_int=predict(new.Rand_Int))
+
 
 ```
 
 Random Slop random slop has a better fit than the random intercept as seen below.
 
-```{r}
-# random slope 
-ggplot(surgery_data_A,aes(y = pain,x =cortisol_serum ,
-group =hospital))+geom_point(size =4,colour="blue")+geom_line(color ="red",size=1,
-aes(y =pred_slope,x =cortisol_serum ))+facet_wrap(~hospital,ncol =5)+
-  theme_bw()
- 
+```{r echo=TRUE, fig.height=6, fig.width=10}
 
+# random slope
+
+graph1_RS<-ggplot(surgery_data_A,aes(y = pain,x =cortisol_serum ,
+group =hospital))+
+  geom_point(aes(colour=hospital,size =4))+geom_line(color ="red",size=1,
+aes(y =pred_slope,x =cortisol_serum ))+
+  facet_wrap(~hospital,ncol =5)+
+  theme_gray()
+  
+graph1_rand_int<- ggplot(surgery_data_A,aes(y = pain,x =cortisol_serum ,
+group =hospital))+
+  geom_point(aes(colour=hospital,size =4))+
+  geom_line(color ="red",size=1,
+aes(y =pred_new_rand_int,x =cortisol_serum ))+
+  facet_wrap(~hospital,ncol =5)+
+  theme_gray()
+
+
+grid.arrange(graph1_rand_int,graph1_RS,nrow=2)
 
 ```
 
-Graph Random intercept
 
-```{r message=FALSE,results='asis',fig.show='asis'}
-
-ggplot(surgery_data_A,aes(y = pain,x =cortisol_serum ,
-group =hospital))+geom_point(size =5,colour="red")+geom_line(color ="blue",size=1,
-aes(y =surgery_data_A$pred_int,x =cortisol_serum ))+facet_wrap(~hospital,ncol =5)+
-  theme_bw()
-```
 
 Generate table for the report
 
-```{r message=FALSE,results='asis'}
+```{r eval=FALSE, message=FALSE, include=FALSE, results='asis'}
+
 tab_model(mod_RI,CSS = list(css.depvarhead = '+color: red;',css.firsttablecol = 'font-weight: bold;',css.summary = 'color: blue;'))
 ```

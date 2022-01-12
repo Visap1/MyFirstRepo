@@ -1,0 +1,493 @@
+---
+title: "saidi"
+author: "Victor S Phiri"
+date: "1/14/2022"
+output:
+  word_document: default
+  html_document: default
+---
+
+\`\`
+
+# Load packages
+
+```{r cars}
+library(GGally) # for ggcorr	
+library(corrr) # network_plot	
+library(ggcorrplot) # for ggcorrplot	
+library(FactoMineR) # multiple PCA functions	
+library(factoextra) # visualisation functions for PCA (e.g. fviz_pca_var)	
+library(skimr)
+library(paran) # for paran	
+
+library(psych) # for the mixedCor, cortest.bartlett, KMO, fa functions	
+library(car) # for vif	
+library(GPArotation) # for the psych fa function to have the required rotation functionalities	
+library(MVN) # for mvn function	
+library(ICS) # for multivariate skew and kurtosis test	
+library(tidyverse) # for tidy code
+library(sjstats)
+library("moments")
+library(moments)
+library(EFAtools)
+library(sjPlot)
+```
+
+# Load Dataset
+
+```{r pressure, include=FALSE}
+ 
+Lab3_data <- read.csv("https://raw.githubusercontent.com/kekecsz/SIMM61-Course-materials/main/Exercise_06%20-%20CFA%20and%20EFA/animalrights.csv", sep= ",", header = T)
+
+view(Lab3_data)
+ 
+```
+
+# Data Screening
+
+```{r}
+colSums(is.na(Lab3_data))
+sum(is.na(Lab3_data))
+str(Lab3_data)
+describe(Lab3_data) 
+```
+
+## Record variables
+
+```{r}
+Lab3_data <- Lab3_data %>%mutate(sex =factor(recode(sex,
+                                                    "2"="male","1"="female")),
+                                 party =factor(recode(party,
+                                                   "1"="democrat",
+                                                   "2"="republican",
+                                                   "3"="other",
+                                                   "4"="none")))
+table(Lab3_data$sex)
+table(complete.cases(Lab3_data))
+
+```
+
+## Drop NAs
+
+```{r}
+Lab3_data <- Lab3_data %>% drop_na()
+
+Lab3_data %>%describe()
+
+summary(lab3_data_items_only)
+
+boxplot.stats(lab3_data_items_only$ar6)$out
+
+```
+
+This fviz_loadnings_with_cor() is a custom function that will be used in this Lab to visualize some of the results of the principal component analysis and exploratory factor analysis.
+
+```{r}
+fviz_loadnings_with_cor <- function(mod, axes = 1, loadings_above = 0.4){	
+  require(factoextra)	
+  require(dplyr)	
+  require(ggplot2)	
+	
+	
+	
+if(!is.na(as.character(mod$call$call)[1])){	
+  if(as.character(mod$call$call)[1] == "PCA"){	
+  contrib_and_cov = as.data.frame(rbind(mod[["var"]][["contrib"]], mod[["var"]][["cor"]]))	
+	
+vars = rownames(mod[["var"]][["contrib"]])	
+attribute_type = rep(c("contribution","correlation"), each = length(vars))	
+contrib_and_cov = cbind(contrib_and_cov, attribute_type)	
+contrib_and_cov	
+	
+plot_data = cbind(as.data.frame(cbind(contrib_and_cov[contrib_and_cov[,"attribute_type"] == "contribution",axes], contrib_and_cov[contrib_and_cov[,"attribute_type"] == "correlation",axes])), vars)	
+names(plot_data) = c("contribution", "correlation", "vars")	
+	
+plot_data = plot_data %>% 	
+  mutate(correlation = round(correlation, 2))	
+	
+plot = plot_data %>% 	
+  ggplot() +	
+  aes(x = reorder(vars, contribution), y = contribution, gradient = correlation, label = correlation)+	
+  geom_col(aes(fill = correlation)) +	
+  geom_hline(yintercept = mean(plot_data$contribution), col = "red", lty = "dashed") + scale_fill_gradient2() +	
+  xlab("variable") +	
+  coord_flip() +	
+  geom_label(color = "black", fontface = "bold", position = position_dodge(0.5))	
+	
+	
+}	
+} else if(!is.na(as.character(mod$Call)[1])){	
+  	
+  if(as.character(mod$Call)[1] == "fa"){	
+    loadings_table = mod$loadings %>% 	
+      matrix(ncol = ncol(mod$loadings)) %>% 	
+      as_tibble() %>% 	
+      mutate(variable = mod$loadings %>% rownames()) %>% 	
+      gather(factor, loading, -variable) %>% 	
+      mutate(sign = if_else(loading >= 0, "positive", "negative"))	
+  	
+  if(!is.null(loadings_above)){	
+    loadings_table[abs(loadings_table[,"loading"]) < loadings_above,"loading"] = NA	
+    loadings_table = loadings_table[!is.na(loadings_table[,"loading"]),]	
+  }	
+  	
+  if(!is.null(axes)){	
+  	
+  loadings_table = loadings_table %>% 	
+     filter(factor == paste0("V",axes))	
+  }	
+  	
+  	
+  plot = loadings_table %>% 	
+      ggplot() +	
+      aes(y = loading %>% abs(), x = reorder(variable, abs(loading)), fill = loading, label =       round(loading, 2)) +	
+      geom_col(position = "dodge") +	
+      scale_fill_gradient2() +	
+      coord_flip() +	
+      geom_label(color = "black", fill = "white", fontface = "bold", position = position_dodge(0.5)) +	
+      facet_wrap(~factor) +	
+      labs(y = "Loading strength", x = "Variable")	
+  }	
+}	
+return(plot)	
+	
+}	
+
+```
+
+# Data exploration
+
+### create are cor matrix
+
+```{r}
+df_items = 
+  subset(Lab3_data,select=ar1:ar28)
+
+ 
+
+
+cor = df_items %>% 
+  cor() 
+cor
+```
+
+Visualization of correlation structure
+
+```{r}
+
+ ggcorr(cor)
+ 
+```
+
+```{r}
+ggcorrplot(cor(df_items), p.mat = cor_pmat(df_items),
+           hc.order = TRUE, type = "lower")
+
+```
+
+##Check for normality assumption
+
+```{r}
+rand=rchisq(nrow(df_items),5) # random variable
+fake=lm(rand~.,data = df_items)# fake regression
+standised=rstudent(fake)
+fitted=scale(fake$fitted.values)
+
+hist(standised) #normality
+
+qqnorm(standised)
+```
+
+# linearlity 
+
+```{r}
+qqmath(standised,id=0.05)
+
+plot(fake,arg ="pearson") #lineality 
+
+fake%>%
+ggplot()+aes(sample =standised)+stat_qq()+stat_qq_line()# linearlity 
+
+```
+
+# Network Analysis
+
+```{r}
+cor(df_items) %>%
+  network_plot(min_cor = 0.6)
+```
+
+# Assumptions for Factorability
+
+```{r}
+Lab3_Cor <- cor(df_items)%>%round(3)
+Lab3_Cor
+
+```
+
+## Kaiser-Meyer-Olkin (KMO) test \#
+
+The KMO test compares the partial correlation matrix\*\* with the regular correlation matrix our overall KMO is larger than 0.6 meaning our data is factorable
+
+```{r}
+KMO(Lab3_Cor)
+
+```
+
+## Bartlett Test
+
+p values \> 0.5
+
+not appropriate for our for data, hence we go for KOM results
+
+```{r}
+cortest.bartlett(Lab3_Cor,n=149)
+
+```
+
+# Factor extraction
+
+## MultivariateNormality mvnTest:
+
+The Pvalue is less than 0.05- Assumption violated
+
+```{r}
+Output <- mvn(Lab3_data[, 1:28], mvnTest = "hz")
+
+Output$multivariateNormality
+
+```
+
+## mvnorm.kur.test
+
+P\<0.05- Assumption Violated
+
+```{r}
+mvnorm.kur.test(na.omit(Lab3_data[, 1:28]))
+```
+
+## mvnorm.skew.test
+
+P-value less than 0.05- Assumption violated
+
+```{r}
+mvnorm.skew.test(na.omit(Lab3_data[,c(1:28)]))
+```
+# Create the first model 4 factors 
+
+Above you can see that both the Henze-Zirkler test and the multivariate skewedness and kurtosis indicate that the assumption of normality is violated. So we will use the paf extraction method \# PAF Analysis communalities indicate the proportion of variance in the observed variable explained by the extracted factors.The communality table indicates that ar5: "ar 5. "It is wrong to wear leather jackets and pants" is the best represented variable in the 4-factor structure,with 18% of its total variance explained by the new factors."ar 3". -"It is morally wrong to drink milk and eat eggs",is the least represented item, with only 21% of its variance explained by the current factor structure.
+
+```{r}
+EFA_mod1 <- fa(Lab3_Cor, nfactors = 4, fm = "pa")
+```
+
+# Sorted communality
+
+```{r}
+
+EFA_mod1_common <- as.data.frame(sort(EFA_mod1$communality, decreasing = TRUE))	
+
+EFA_mod1_common 
+
+```
+
+mean
+
+```{r}
+mean(EFA_mod1$communality)
+```
+
+## Parallel Test
+
+Choosing ideal number of factors Parallel Test suggest 5 factors
+
+```{r}
+fa.parallel(Lab3_Cor, n.obs = nrow(Lab3_data), fa = "fa", fm = "pa") 
+```
+
+## VSS technique
+
+-   two factors were noticed to be dominant
+
+```{r}
+nfactors(Lab3_Cor, n.obs = nrow(Lab3_data)) 
+```
+
+## Kaiser\_ Gutman criterion
+
+suggest 2 factors
+
+```{r}
+ KGC(Lab3_Cor,eigen_type = "EFA",n_factors = 4)
+```
+
+# Create a two factor model
+
+Two factor model based on analysis of our data
+
+```{r}
+EFA_mod2 <- fa(Lab3_Cor, nfactors = 2, fm="pa")	
+
+EFA_mod2	
+EFA_mod2_common <- as.data.frame(sort(EFA_mod2$communality, decreasing = TRUE))
+
+EFA_mod2_common
+```
+
+\#Mean commonality
+
+```{r}
+mean(EFA_mod2$communality)
+```
+
+# Rotation
+
+## Oblique
+
+```{r}
+fa(Lab3_Cor, nfactors = 2, fm="pa", rotate = "oblimin")
+```
+
+## PROMAX ROTATION
+
+```{r}
+EFA_mod_promax <- fa(Lab3_Cor, nfactors = 2, fm="pa", rotate = "promax")
+
+EFA_mod_promax
+```
+#varimax
+```{r}
+EFA_mod_varimax <- fa(Lab3_Cor, nfactors = 2, fm="pa", rotate = "varimax")
+EFA_mod_varimax
+
+```
+
+factor analysis diagramme
+
+```{r}
+fa.diagram(EFA_mod2)
+
+```
+
+```{r}
+fa.diagram(EFA_mod_varimax)
+```
+
+```{r}
+fa.diagram(EFA_mod_promax)
+
+```
+
+\#Factor Loadings
+
+```{r}
+fviz_loadnings_with_cor(EFA_mod2, axes = 1, loadings_above = 0.4)
+
+```
+
+\#Factor loadings
+
+```{r}
+
+fviz_loadnings_with_cor(EFA_mod2, axes = 2, loadings_above = 0.4)	
+
+```
+
+We redo the process create the subset - by removing valuables with less influence
+
+```{r}
+Lab3_items_only2 <- subset(lab3_data_items_only, select = -c(1,8,14,11,25,21))
+
+Lab3_Cor2 <- cor(Lab3_items_only2)
+
+
+```
+
+Run the parallel test
+
+```{r}
+
+fa.parallel(Lab3_Cor2, n.obs = nrow(Lab3_items_only2), fa = "fa", fm = "pa")
+
+```
+
+# VSS method
+
+Three measures support 2 factor approach
+
+```{r}
+
+nfactors(Lab3_Cor2, n.obs = nrow(Lab3_items_only2))
+
+```
+
+# create the final model
+
+```{r}
+EFA_mod3 <- fa(Lab3_Cor2, nfactors = 2, fm = "pa", rotate = "promax")
+EFA_mod3
+```
+
+## final Model
+factors for the final model
+
+```{r}
+fa.diagram(EFA_mod3,cut=0.4)
+
+fviz_loadnings_with_cor(EFA_mod3, axes = 1, loadings_above = 0.4)
+
+fviz_loadnings_with_cor(EFA_mod3, axes = 2, loadings_above = 0.4)
+```
+
+### Post extraction communality
+
+```{r}
+EFA_mod3_common <- as.data.frame(sort(EFA_mod3$communality, decreasing = TRUE))
+
+EFA_mod3_common
+
+mean(EFA_mod3$communality)
+
+```
+
+```{r}
+
+fa(Lab3_Cor2, nfactors = 2, fm="pa", rotate = "promax")
+
+
+```
+
+Saving factor output
+
+```{r}
+
+factorscores = factor.scores(Lab3_items_only2[,1:22], EFA_mod3)$scores
+
+ar_factorscores = cbind(Lab3_data, factorscores)
+
+
+
+
+```
+
+Giving new names to variables
+
+```{r}
+
+art_factorscores<- ar_factorscores %>% 
+  rename(exploitation= (PA1),
+         Research = (PA2))
+
+```
+
+Regression Model
+
+```{r}
+Reg_mod <- lm(liberal ~ exploitation + Research, data = art_factorscores)
+
+summary(Reg_mod)
+
+tab_model(Reg_mod,CSS = list(css.depvarhead = '+color: red;',css.firsttablecol = 'font-weight: bold;',css.summary = 'color: blue;',css.est=TRUE))
+
+
+```

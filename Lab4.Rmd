@@ -1,0 +1,133 @@
+---
+title: "Lab4"
+author: "Victor S Phiri"
+date: "1/19/2022"
+output: html_document
+---
+
+Load packages
+
+```{r setup, include=FALSE}
+library(lavaan) # for SEM fit and model functions	
+library(semPlot) # for semPaths()	
+library(semptools) # for set_sem_layout	
+library(tidyverse) # for tidy code	
+library(CompQuadForm) # for mvnorm.kur.test and mvnorm.skew.test (prerequisite)	
+library(ICS) # for mvnorm.kur.test and mvnorm.skew.test	
+#install.packages("psychTools")
+library(QuantPsyc)
+library(psychTools)
+library(dplyr)
+```
+
+Load data
+
+```{r}
+ 
+lab4_data=holzinger.swineford
+View(lab4_data)
+
+# Record variables 
+df=lab4_data %>% 
+  rename(visperc=t01_visperc,
+         cubes=t02_cubes,
+         frmbord=t03_frmbord,
+         lozenges=t04_lozenges,
+         paracomp=t06_paracomp,
+         sentcomp=t07_sentcomp,
+         wordmean=t09_wordmean,
+         addition=t10_addition,
+         countdot=t12_countdot,
+         sccaps=t13_sccaps)
+         
+         
+         view(df)
+```
+
+Test Multivariate Normality 
+
+Less than 0.05 - violated 
+```{r}
+
+ mvnorm.kur.test(df[,c("visperc","cubes","frmbord","lozenges","paracomp","sentcomp","wordmean","addition","countdot","sccaps")])
+
+```
+less than 0.05- violated 
+```{r}
+mvnorm.skew.test(df[,c("visperc","cubes","frmbord","lozenges","paracomp","sentcomp","wordmean","addition","countdot","sccaps")])
+```
+
+Mardia’s Test 
+verifies that or Pvalues are less than 0.05- Assumption violated
+```{r}
+mult.norm(df[,c("visperc","cubes","frmbord","lozenges","paracomp","sentcomp","wordmean","addition","countdot","sccaps")])$mult.test
+
+```
+
+
+create a model
+
+```{r}
+ModA<-'
+visual=~visperc+cubes+frmbord+lozenges
+verbal=~paracomp+sentcomp+wordmean
+speed=~addition+countdot+sccaps'
+
+
+```
+
+fit the model
+since our normality assumptions were violated, we use the MLM Estimator 
+
+```{r echo=TRUE, paged.print=TRUE}
+fit <- sem(ModA, data = df,estimator="MLM")
+
+summary(fit,fit.measures=T,standardized=T)
+
+semPaths(fit)
+ 
+```
+
+```{r}
+ModB_Path=semPaths(fit,fixedStyle =1,label.scale=T,nCharNodes =0,
+sizeMan2=5,sizeMan=8,asize=2,whatLabels = "std")
+```
+
+
+```{r}
+
+ModB<-'
+ visual=~visperc+cubes+frmbord+lozenges
+verbal=~paracomp+sentcomp+wordmean
+speed=~addition+countdot+sccaps
+
+# correlation 
+addition ~ ~ countdot'
+
+fit2 <- sem(ModB, data = df,estimator="MLM")
+
+semPaths(fit2)
+
+summary(fit2,standardized=T)
+
+```
+
+```{r}
+ModB_Path=semPaths(fit2,fixedStyle =1,label.scale=T,nCharNodes =0,
+sizeMan2=5,sizeMan=8,asize=2,whatLabels = "std")
+
+```
+Compare the models 
+
+```{r}
+anova(fit,fit2)
+
+0.31+(0.23*0.38)
+  
+```
+
+
+```
+
+
+
