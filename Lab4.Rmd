@@ -1,6 +1,6 @@
 ---
 title: "Lab4"
-author: "Victor S Phiri"
+author: "Victor Saidi Phiri"
 date: "1/19/2022"
 output: html_document
 ---

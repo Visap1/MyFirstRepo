@@ -1,6 +1,6 @@
 ---
 title: "saidi"
-author: "Victor S Phiri"
+author: "Victor Saidi Phiri"
 date: "1/14/2022"
 output:
   word_document: default
@@ -12,6 +12,7 @@ output:
 # Load packages
 
 ```{r cars}
+
 library(GGally) # for ggcorr	
 library(corrr) # network_plot	
 library(ggcorrplot) # for ggcorrplot	
