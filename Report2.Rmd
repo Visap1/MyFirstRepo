@@ -1,0 +1,464 @@
+---
+title: "Lab2b"
+author: "Victor S Phiri"
+date: "3/18/2022"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+**Load packages**
+
+This report uses the following packages
+
+```{r}
+library(network)# for creating a network object 
+#library(igraph)# Visualization and measurements 
+library(sna)
+library(igraph)
+library(readr)
+library(dplyr)
+ 
+
+```
+
+**Load data**
+
+-   We load our two datasets and create a net work object
+
+```{r}
+
+klub_edges <- read_csv("klubbdata_edges.csv")
+
+klub_nodes <- read_csv("klubbdata_nodes.csv")
+
+Klub_net<-as.network.data.frame(klub_edges,klub_nodes,directed = F)
+class(Klub_net)
+```
+
+**Q1: Is the network directed or undirected?**
+
+-   Ans: we created an undirected network
+
+```{r}
+print.network(Klub_net)
+```
+
+**Q2: How many actors and ties there are?**
+
+-   Ans: Our network has 34 actors and 78 ties.
+
+```{r}
+network.size(Klub_net)# for number of actors 
+network.edgecount(Klub_net)# for number of ties 
+#summary.network(Klub_net,print.adj = F)
+```
+
+**Q3: What is the density of the network?**
+
+```{r}
+gden(Klub_net)# to get the density of our network
+
+```
+
+**Q4: What is the average degree of the network?**
+
+Averages degree of a network is calculated by dividing the total edges by total nodes [@jilbert]. 2.29*2=4.59 for undirected network was the average degree of our network.
+
+```{r}
+averagedegree<- network.edgecount(Klub_net)/network.size(Klub_net)*2
+ averagedegree
+```
+
+Q5: What is the average shortest path of the network?
+
+we used the `average.path.length`function to find the shortest path. we started by changing our network object into igraph using the function `asIgraph` from the intergraph package.
+
+```{r}
+library(igraph)#visualization and analysis 
+library(intergraph)# for transforming the network objects 
+
+klub_net.ig<-asIgraph(Klub_net)
+average.path.length(klub_net.ig)
+```
+
+#*Q6: Who are the 2 most central characters in this network?**
+
+-   ans\<-***34*** and ***1***: We computed the centrality measurements for our network and presented a summary as shown in our table. We used the Igraph package to obtain our values.
+
+```{r,fig.align='center'}
+klub_cent <- data.frame(
+  degree = degree(klub_net.ig)/2,
+  closeness = closeness(klub_net.ig),
+  betweenness = betweenness(klub_net.ig))
+ 
+row.names(klub_cent) <- Klub_net %v% "vertex.names"  # name rows with vertex names
+df_dgresort <- klub_cent[order(-klub_cent$degree),]  # sort in decreasing degree order
+df_dgresort %>% top_n(2) %>% round(2)
+```
+
+Q7: Are there different communities in the network (use Louvain algorithm)? Describe and visualise the results. Report correlation with actual club membership.
+
+-   ans\<- there four different communities in a dataset.
+
+```{r}
+comm_klub <- cluster_louvain(klub_net.ig, weights=NULL)#create community
+#membership(comm_klub)
+length(comm_klub)# to see the number of communities 
+head(comm_klub)# composition per group
+```
+
+Assign colours to communities
+
+```{r}
+library(RColorBrewer)
+comm_klub_comm <- comm_klub$membership
+comm_klub_comm
+
+table(comm_klub_comm)
+
+klub_net_attr<-vertex.attributes(klub_net.ig)
+klub_net_labels<-klub_net_attr$vertex.names
+
+colors <- brewer.pal(length(comm_klub), 'Accent')#for colors 
+V(klub_net.ig)$color <- colors[membership(comm_klub)]#assign color to node based on com membership
+```
+
+we visualised the net work. The network diagram below shows the four communities.
+
+```{r,fig.height=6,fig.width=10}
+set.seed(5)
+ plot(comm_klub,klub_net.ig)
+
+```
+
+Q8: Perform clustering based on edge betweenness (use cut-off to 2 clusters). How well do theclustering results match with the actual club membership? Report correlation and create network visualisation that shows both to which cluster and club actors belong to.
+
+solution:
+
+we created clusters and visualised our data using the denplot function to show our two clusters. We further ran the correlation analysis which gave us a value of -0.94.  
+
+```{r,fig.height=8,fig.width=10}
+
+Klub_cluster<- cluster_edge_betweenness(klub_net.ig)#create clusters
+
+Klub_2clusters <- cut_at(Klub_cluster, no = 2)# two clusters 
+ 
+chisq.test(Klub_2clusters,klub_net_attr$faction)# correlation 
+cor.test(Klub_2clusters,klub_net_attr$faction)
+#plot 
+set.seed(2)
+plot(klub_net.ig,
+     vertex.label=Klub_2clusters,
+     vertex.color=klub_net_attr$faction,
+     edge.color="grey",
+     layout=layout.fruchterman.reingold,main="Clustered graph")
+
+plot(klub_net.ig,
+     vertex.label=klub_net_attr$vertex.names,
+     edge.color="grey",
+     vertex.color=Klub_2clusters,
+     layout=layout.fruchterman.reingold,
+     main="Clustered graph")
+#Klub_2clusters,
+```
+
+Visualise the network
+
+```{r}
+ dendPlot(Klub_cluster, mode="hclust", rect = 2)
+```
+
+```{r}
+ig_net_attr<-vertex.attributes(klub_net.ig)
+ig_net_labels<-klub_net_attr$vertex.names
+
+colors <- brewer.pal(length(Klub_2clusters), 'Accent')#for colors 
+V(klub_net.ig)$color <- colors(klub_net_attr$faction)#assign color to node based on com membership
+
+table(Klub_2clusters)
+table(klub_net_attr$faction)
+```
+
+Starwars Dataset
+
+```{r message=FALSE, paged.print=TRUE}
+library(movienetdata) #load dataset 
+library(network)
+```
+
+```{r message=FALSE, include=FALSE, paged.print=TRUE}
+data("starwars_tfa", "movienetdata") 
+data(package = "movienetdata") 
+force(starwars_tfa)
+
+starwars_net <- network(starwars_tfa$adjacency)
+ 
+
+```
+
+9\. Is the network directed or undirected?
+
+-   It was a directed network
+
+```{r}
+ 
+ starwars_net
+
+
+```
+
+\#\#10. How many actors and ties there are?
+
+There were 31 actors and 149 ties in a network.
+
+```{r message=FALSE}
+network.size(starwars_net)# number of actors 
+network.edgecount(starwars_net)# number of ties 
+
+```
+
+\#\#11. What is the density of the network?
+
+ans\<- 0.16
+
+```{r message=FALSE}
+sna::gden(starwars_net,mode = "digraph")#sna for density calculation calculation
+ 
+```
+
+12\. What is the average degree of the network?
+
+ans\<- 4.81
+
+```{r}
+network.edgecount(starwars_net)/network.size(starwars_net)
+```
+
+\#\#13. **What is the average shortest path of the network?**
+
+We changed changed the class of our data into an Igraph object through the intergraph package. This allowed us find the average shortest path of our network to be 2.3 as seen below.
+
+```{r message=FALSE}
+library(igraph)
+library(intergraph)
+
+starwars_net_ig<-asIgraph(starwars_net)
+starwars_net_ig%>% 
+  average.path.length()
+ 
+
+ 
+```
+
+#14.*Who are the 3 most important characters in this movie?*
+
+we computed the centrality scores for our network and based on the degree and betweenness centrality results, we concluded that the following were the key characters in the movie.
+
+-   Poe Dameron, Han Solo, Kylo Ren
+
+```{r eval=FALSE, message=FALSE, include=FALSE, paged.print=TRUE}
+library (igraph)
+
+cent_scores <- data.frame( 
+  degree=degree(starwars_net_ig),
+  closeness = closeness(starwars_net_ig),
+  betweenness = betweenness(starwars_net_ig))
+ 
+```
+
+**Sort the scores in ascending order**
+
+```{r eval=FALSE, message=FALSE, include=FALSE, paged.print=TRUE}
+row.names(cent_scores) <- starwars_net %v% "vertex.names"  # name rows with vertex names
+starwars_sort <- cent_scores[order(-cent_scores$degree),]  # sort in decreasing degree order
+starwars_sort %>% top_n(3) %>% round(2)
+
+```
+
+**15. Who does Rey interact with in the movie?**
+
+-   we used the `get.neigborhood`function to obtain list of all that interacted with Rey which included Keylo Ren [3], Finn[5],Unkar[6],Han Solo [10], Maz Kanata[4]
+
+```{r}
+
+Rey_neig<-network::get.neighborhood(starwars_net, 7)
+Rey_neig
+ 
+```
+
+\#\#16. **Visualise the network so that node size depends on some centrality measure and node colour corresponds to the sex of the character.**
+
+we started by selecting the degree of centrality for our Igraph dataset. we further used the nodelist and char_female to get components for our graph. We found that Poe Dameron had a bigger circle than other nodes_due to the high degree of the node. additionally, we can also see from our coloured nodes that we had very view females in our network.
+
+```{r eval=FALSE, include=FALSE,fig.height=10,fig.width=15}
+#create degree scores
+ 
+  degree_score<-degree(starwars_net_ig)
+ 
+df_F<-starwars_tfa$node_list$char_female#select char_female for gender
+labels<- starwars_tfa$node_list$char_name#get labels from the nodes list.
+```
+
+**create a graph**
+
+```{r eval=FALSE, include=FALSE,fig.height=10,fig.width=15}
+set.seed(5)
+ # create a graph 
+plot(starwars_net_ig, vertex.size=degree_score, 
+     vertex.label=labels, 
+     vertex.color=df_F, edge.arrow.size=0.1,
+     edge.color="grey",
+     layout = layout_on_sphere,label.cex = 0.8)
+ 
+
+```
+
+**17. Briefly compare the two networks to other real-life networks (use the examples from the last slide in Lecture 2).**
+
+```{r}
+starwars_net_ig
+klub_net.ig
+
+
+```
+
+\#Part B
+
+**Create a social network (e.g. friends, relatives, classmates etc.) with at least 16 actors.**
+
+```{r}
+library(igraph)
+ net_vic<-graph(edges=c("Pat","Tio",
+                  "Pat","Tem",
+                  "Pat","Pet",
+                  "Pat","Inno",
+                  "Pat","Egb",
+                  "Pat","Vic",
+                  "Pat","Roy",
+                  "Vic","Inno",
+                  "Vic","Cha",
+                  "Vic","Nam",
+                  "Vic","Geo",
+                  "Vic","Pet",
+                  "Inno","Cha",
+                  "Inno","Mpa",
+                  "Inno","Geo",
+                  "Inno","Egb",
+                  "Inno","Mad",
+                  "Inno","Roy",
+                  "Pet","Cha",
+                  "Pet","Nam",
+                  "Pet","Vic",
+                  "Pet","Mad",
+                  "Egb","Nam",
+                  "Egb","Geo",
+                  "Egb","Vic",
+                  "Egb","Inno",
+                  "Egb","Roy",
+                  "Roy","Mer",
+                  "Roy","Fred",
+                  "Fred","Mer",
+                  "Fred","Vic",
+                  "Enn","Mad",
+                  "Enn","Cha",
+                  "Mad","Mag"),directed = F)
+    E(net_vic)
+    V(net_vic)
+     
+```
+
+**18. Compare your network to a random network and small world network of the same size (also set seed). Provide a brief description of network, including a table with the main descriptives and figures of degree distribution for all 3 networks.**
+
+**create a random and small world network.**
+
+```{r}
+Smw_net <- sample_smallworld(dim =1,size =17, nei =5,p=0.0)
+Rand_net<-sample_gnm(17,34,directed = F)
+average.path.length(Smw_net,directed = F)
+average.path.length(Rand_net)
+average.path.length(net_vic)
+```
+
+\#calculate the degree of each network
+
+```{r}
+swd_net1_deg<-degree(Smw_net)/2
+Rand_degree<- degree(Rand_net)/2
+my_net<- degree(net_vic)/2
+
+avgd_smd<- 2*85/17
+avgd_rand<- 2*34/17
+
+avgd_mynet<-2*34/17
+avgd_mynet
+avgd_rand
+avgd_smd
+df<-data.frame(avgd_mynet,avgd_rand,avgd_smd)
+ 
+```
+
+\#Visualise the networks
+
+```{r}
+hist(swd_net1_deg, breaks=c(0:10),col = "green", main="Histogram of node degree_small world")
+hist(Rand_degree, breaks=(0:10),col = "green", main="Histogram of node degree_Random_net")
+hist(my_net, breaks=c(1.1*0:10),col = "steelblue", main="Histogram of node degree_mynet work")
+```
+
+19. Present a very basic visualisation of all 3 networks (just to capture the basic structure of connections).
+
+```{r,fig.height=8,fig.width=15}
+# my network
+set.seed(2)
+plot(net_vic,
+     displaylabels="vertex.names",
+     layout=layout.fruchterman.reingold,
+     vertex.color="green",main="My network")
+ #Random network
+plot(Rand_net,displaylabels="vertex.names",
+     layout=layout.fruchterman.reingold,
+     vertex.color="red",
+     main="Random network")
+#smallworld network
+plot(Smw_net,displaylabels="vertex.names",
+     layout=layout.fruchterman.reingold,
+     vertex.color="steelblue",vertex.size=15,
+     main="Smallworld network")
+
+
+#Smallworld network
+
+```
+
+20\. Create a list of top 5 members by 3 centrality measures for your network. In your network:
+
+```{r}
+net_vic_scores<-data.frame(
+  degree=degree(net_vic),
+  closeness=closeness(net_vic),
+  betweeness=betweenness(net_vic))
+
+net_vic_scores %>% sort(decreasing = TRUE) %>% top_n(5)
+
+```
+
+a)  Who you consider the key figure to contact for distributing information? Why? 
+inocent
+
+
+b)  Who should get vaccinated first to avoid quick spreading of contagious disease? Why?
+victor, inno
+Create a visualisation of your social network (use labels, colours etc).
+
+```{r,fig.height=10}
+set.seed(2)
+plot(net_vic,
+     displaylabels="vertex.names",
+     layout=layout.fruchterman.reingold,
+     vertex.color=rainbow(55),
+     edge.color="grey",
+     main="My network")
+
+```
