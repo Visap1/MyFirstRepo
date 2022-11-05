@@ -1,0 +1,419 @@
+---
+title: "Logistic Regression"
+author: "Victor S Phiri"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    reference_docx: "new-styles.docx"
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, comment=NA,prompt = FALSE, cache = FALSE, results = 'asis',fig.width = 8,fig.height = 6)
+```
+# Abstract
+
+This lab report shows the survival probabilities for Kate and Sue, who were victims of the
+Titanic tragedy. We used logistic regression to compute our model. The model had 81% correct
+predictions of which 73% correctly predicted as survived while 86% did not survive. We also
+established that sex was the most influential predictor in the model. Further, we computed
+probabilities for Kate and Sue and concluded that Leonardo’s presence wouldn’t have had
+improved the chance of survival for both Kate and Sue.  
+
+# Background
+
+The sinking of the Titanic is one of the most infamous shipwrecks in history. On April 15, 1912, during her maiden voyage, the widely considered "unsinkable" RMS Titanic sank after colliding with an iceberg. Unfortunately, there weren't enough lifeboats for everyone onboard, resulting in the death of 1502 out of 2224 passengers and crew. While there was some element of luck involved in surviving, it seems some groups of people were more likely to survive than others." (Quote from the Kaggle Titanic Challenge). For the sake of this assignment, let's imagine that you are called as an expert to a court case: Sue, one of the survivors of the Titanic accident is suing her father, Leonardo, for not accompanying Sue and her mother Kate on the trip and this way decreasing their chances of survival. The family planned to move to the US back in 1912. They bought 3 rd class tickets for the three of them for 8 British Pounds each. (They did not get cabins with their 3 rd class tickets.) The plan was that they embark in Southampton and all of them got on board, but Leonardo got separated from them in the rush of passengers during boarding. Later it turned out that Leonardo deliberately got separated from them and got off the boat before it's departure, to run away and live with his mistress. Sue was only 4 at the time, and Kate was 20. During the accident Sue got on one of the last lifeboats and was later rescued, but there was no room for Kate on the lifeboat, and she did not survive the disaster. Now, 20 years later, Sue is suing her father for leaving them on the Titanic, because she thinks that this eventually led to Kate's death, as the absence of Leonardo decreased their chances of survival.
+
+You are called in as an expert to this court case. Your task is to present a report about whether the presence of Leonardo statistically could have led to an improved chance of survival.
+
+## Task
+
+Build a model that can correctly predict the outcome value within the sample with at least 72% accuracy for **BOTH** those who actually *survived* and who *actually* died in the disaster. You need to check this in the Classification table. So it is not enough to have 72% overall correct percentage! In order to be able to reach this prediction accuracy you might have to use some special predictors or to do some feature engineering.
+
+```{r Load libraries}
+library(psych)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(gtsummary)
+library(gridExtra)
+library(pscl) # for pR2
+library(lmtest) # for lrtest
+library(Amelia)
+library(dominanceanalysis) # for dominanceAnalysis()
+library(sjmisc)
+library(sjPlot)
+library(sjlabelled)
+library(modelsummary)
+
+df_Titanic=read.csv("https://raw.githubusercontent.com/kekecsz/SIMM61-Course-materials/main/Home_assignment/Titanic%20-%20training%20set.csv")
+```
+
+```{r explore data, include=FALSE}
+# check the structure of the data
+str(df_Titanic)
+#convert sex into factor 
+df_Titanic$Sex=factor(df_Titanic$Sex)
+df_Titanic$Pclass=factor(df_Titanic$Pclass)
+df_Titanic$Survived=factor(df_Titanic$Survived)
+
+
+Clean_Titanic<- df_Titanic %>%
+  mutate(Pclass = factor(Pclass, levels = c(1, 2, 3), labels = c('First Class', 'Second Class', 'Third Class')),
+	Survived = factor(Survived, levels = c(0, 1), labels = c('No', 'Yes')),
+	                 Sex=as_factor(Sex,levels=c(0,1),labels=c("female","male")))
+
+
+```
+
+```{r check missing Values, include=FALSE}
+visdat::vis_miss(Clean_Titanic)
+# Missing Values in Age 
+#drop NAs
+Final_titanic_data<- Clean_Titanic %>% tidyr::drop_na()
+visdat::vis_miss(Final_titanic_data)# no NAs exists 
+```
+
+## Overall survival rates
+
+The data indicates the number of women that survived were more than that of the males. Further, they were high fatalities among men than women.figure 1.
+
+```{r Visualise Data}
+
+ggplot(Final_titanic_data, aes(x=Sex,fill=Survived))+
+  geom_bar(position = "dodge") + 
+  geom_text(stat='count',aes(label=..count..),position = position_dodge(0.9),vjust=-0.2) +
+  theme_bw()+theme_bw()+
+ylab("Number of Passengers")
+
+
+
+```
+
+The number of fatalities were high in the third class than others. Additionally, the first class a higher number of survivors. While in the second class the difference is not huge.
+
+```{r}
+ ggplot(Final_titanic_data, aes(x=Pclass,fill=Survived))+ geom_bar(position = "dodge") + geom_text(stat='count',aes(label=..count..),position = position_dodge(0.9),vjust=-0.2) +
+ylab("Number of Passengers") + xlab("Passenger Class")+theme_bw()
+  
+   
+```
+
+## Survival rate by Age
+
+The number of males who did not survive is high in all the passenger classes with the highest being in the third class. There seem to be a higher change of survival among the children than adults. additionally, ages between 20 and 40 had a lower chance of survival.
+
+```{r}
+  Final_titanic_data %>%
+ggplot() +
+aes(x = Age, fill = Survived) +
+theme_dark()+
+facet_wrap(Sex~Pclass)+
+geom_histogram()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Age by Passanger class")
+```
+
+## survival by gender by class
+
+```{r}
+ Final_titanic_data %>%
+ggplot() +
+aes(x = Sex, fill = Survived) +
+theme_bw()+
+facet_wrap(~Pclass)+
+geom_bar()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Gender by Passanger class")
+```
+
+## Survival rate with sibling and or spouse by class
+
+-   Does the presence of spouse or sibling increases the chance of survival?
+
+    The presence of relative seem to low the chance of survival in all the passenger classes.
+
+```{r}
+ Final_titanic_data %>%
+ggplot() +
+aes(x = SibSp, fill = Survived) +
+theme_dark()+
+facet_wrap(~Pclass)+
+geom_bar(start="identity")+theme_bw()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Gender by Passanger class")
+```
+
+## child or sibling by survive
+
+Does the presence of a child or sibling increases the chance of survival?
+
+```{r}
+ Final_titanic_data%>%
+ggplot() +
+aes(x = Parch, fill = Survived) +
+theme_bw()+
+facet_wrap(~Pclass)+
+geom_bar()+
+labs(y="passanger count",
+       tittle="Titanic Survival Rates by Age by Passanger class by Parch")
+```
+
+# Regression Analysis
+
+The previous steps has enabled us to assess our data and come up with the following model.
+
+-   Outcome valuable:
+
+    -   Survived
+
+<!-- -->
+
+-   Predictors:
+    -   Sex,
+    -   Passenger Class(Pclass),
+    -   Age,
+    -   Siblings or Spouse(Sibsp)
+    -   Parent/child(Parch)
+
+```{r}
+Final_titanic_data %>% select(Survived,Sex,Pclass,SibSp,Parch) %>% 
+tbl_summary(by=Survived) %>% 
+  add_overall() %>%
+  add_n() %>%
+  modify_header(label ~ "**Variable**") %>%
+  modify_footnote(
+    all_stat_cols() ~ "Median (IQR) or Frequency (%)"
+  ) %>%
+  modify_caption("**Summary Table **") %>%
+  bold_labels()
+```
+
+```{r model}
+library(jtools)
+Mod1 = glm(Survived~ Sex+Pclass+Age+SibSp+Parch,
+family = binomial(), data = Final_titanic_data)
+
+summ(Mod1)
+
+```
+
+We created a binomial logistic regression (glm) model using Survived as our outcome variable while gender, age, passenger class, parents or child, and sibling or spouse as predictors of survival. We used the pR2 function to assess the performance of our model and the null model. The results showed that our model was better than the null model with -318.23llh and 636.46(2ll). Further the model explained 0.34(34%) of the variance (McFadden). Our model's log of likelihood was (-318.23) better than (-482.26) of the null model.
+
+Further, our model had a significant P-value \< 0.001 and a Chisq value of 328.06. We also found that the AIC for our model was 650.46, which is lower than 966.52 for the null model. The small AIC value makes our model a better fit than the null model. Further, in terms of correct overall predictions, our model predicted 575 cases correct out of a total of 714 observations representing an 81% correct prediction rate. Additionally, 73% of the cases were correctly predicted as survived, while 86% were correctly predicted as not survived.
+
+# Model Performance
+
+We use the pR2 function to asses the performance of our model and the null model. "pscl package". The model has (-318.22 llh) which is bigger than the Null model(-482.26 llhNull). This implies that our model is better than the null model.
+
+```{r pR2}
+
+  pR2(Mod1)%>%round(2)
+ 
+
+```
+
+```{r Deviance}
+   # 2ll deviance 
+pR2(Mod1)["llh"] * -2 # alternative model 
+ 
+```
+
+```{r Predicting accuracy for categorization}
+
+Final_titanic_data = Final_titanic_data %>%
+mutate(pred_Mod1 = predict(Mod1)) %>% 
+  mutate(pred_Mod1 = case_when(pred_Mod1 <= 0 ~"No",
+                                pred_Mod1 > 0 ~ "Yes"))
+```
+
+```{r Coding correct cases}
+
+ Final_titanic_data = Final_titanic_data %>%
+  mutate(correct_prediction=case_when(pred_Mod1 == Survived  ~ "correct",
+                                      pred_Mod1 != Survived ~ "incorrect"))
+
+```
+
+The model has 81% correct prediction rate and 19% incorrect predictions
+
+```{r Check the model prediction performance}
+ 
+Final_titanic_data %>%
+group_by(correct_prediction) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count)) %>% kable(digits = 2,caption = "Model Predictions") 
+
+
+```
+
+# compute the null model;
+
+this will be used to compare the data with the data predicted by our model.
+
+```{r}
+mod_null = glm(Survived ~ 1, family = binomial(), data = Final_titanic_data)
+
+summary(mod_null)
+
+```
+
+The null model the model show that 59% of the people died while 41% died
+
+```{r}
+
+Final_titanic_data %>%
+group_by(Survived) %>%
+summarise(count = n()) %>%
+mutate(freq = count / sum(count))
+ 
+```
+
+compare the predictions of the null model with the alternative model
+
+```{r}
+
+Final_titanic_data%>%
+group_by(Survived, pred_Mod1) %>%
+summarize(n = n()) %>%
+spread(Survived, n)
+
+
+```
+
+### check for the prediction of Survival rate by response category(Survived= Yes/No)
+
+73% of survivors were correctly predicted. However, 27% were wrongly predicted.
+
+```{r predictions}
+
+Final_titanic_data %>%
+filter(Survived == "Yes") %>%
+group_by(correct_prediction) %>%
+  summarise(count = n()) %>%
+  mutate(freq = count / sum(count)) %>%  
+mutate(freq = count / sum(count)) %>% kable(digits = 2)
+
+
+```
+
+### Predictions for those who died
+
+our model had 86% correct prediction and 14% incorrect predictions
+
+```{r Predictions for those who died}
+
+
+Final_titanic_data %>%
+filter(Survived == "No") %>%
+group_by(correct_prediction) %>%
+summarise(count = n()) %>% mutate(freq = count / sum(count)) 
+
+```
+
+```{r AIC}
+
+ AIC(mod_null, Mod1)
+ 
+```
+
+# Dominance Analysis
+
+We also conducted a dominance analysis to identify the most influential predictors in our model. We noted from our findings that Sex (0.21) is the main predictor of the outcome. Survive, followed by Passenger class (0.11), Age (0.02), Sibling or spouse (0.01), and parent or child (0.00).
+
+```{r message=FALSE, results='asis'}
+
+Dominance_TMod1<-dominanceAnalysis(Mod1)
+
+contributionByLevel(Dominance_TMod1, fit.functions="r2.m") %>% kable(digits = 2)
+
+```
+
+# Average contribution of predictors
+
+```{r average dominance}
+
+averageContribution(Dominance_TMod1,fit.functions = "r2.m")
+   
+
+```
+
+```{r Graph conditional dominance Analysis}
+
+plot(Dominance_TMod1, which.graph ="conditional",fit.function = "r2.m")
+
+
+
+```
+
+# 
+
+```{r Graph general Dominace}
+plot(Dominance_TMod1, which.graph ="general",fit.function = "r2.m")
+
+
+```
+
+## Calculate survival probability without Leonardo 
+
+$$Kateprobability=Intercept_{}+Sex_{*0}+PclassSecond Class_{*0}+ PclassThird Class _{*1}+Age_{*20}+SibSp_{*0}+Parch{*1}$$
+
+$logodds1 =4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*20+(-0.37)*0+(-0.04)*1=0.87$\  
+ 
+$odds1<- exp(logodds1)=2.39$\ 
+
+$Kateprobability1= odds1/(1+ odds1)*100=70%$\ 
+
+Kate had 70% probability of survival without Leonardo 
+```{r}
+
+odds=exp(round(coef(Mod1)[1],2)+round(coef(Mod1)[2],2)*0+round(coef(Mod1)[3],2)*0+round(coef(Mod1)[4],2)*1+round(coef(Mod1)[5],2)*20+round(coef(Mod1)[6],2)*0+round(coef(Mod1)[7],2)*1)
+
+Kate_prob=round(odds/(1+odds)*100,2) %>% paste0("%")
+
+
+```
+
+## Calculate survival probability with Leonardo
+
+$$Kateprobability=Intercept_{}+Sex_{*0}+PclassSecond Class_{*0}+ PclassThird Class _{*1}+Age_{*20}+SibSp_{*1}+Parch{*1}$$
+ $logodds2 =4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*20+(-0.37)*1+(-0.04)*1=0.5$\  
+ 
+$odds2<- exp(logodds1)=1.65$\ 
+
+$Kateprobability2= odds2/(1+ odds2)*100=62%$\ 
+
+## Sue survival without Leonardo
+
+$$Sueprobability=Intercept_{}+Sex_{*0}+PclassSecond Class_{*0}+ PclassThird Class _{*1}+Age_{*4}+SibSp_{*0}+Parch{*1}$$
+$logodds3 =4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*4+(-0.37)*0+(-0.04)*1=1.5$\  
+ 
+$odds3<- exp(logodds3)=4.5$\ 
+
+$Sueprobability2= odds2/(1+ odds2)*100=82%$\ 
+
+## Sue survival with Leonardo
+
+$$Sueprobability=Intercept_{}+Sex_{*0}+PclassSecond Class_{*0}+ PclassThird Class _{*1}+Age_{*4}+SibSp_{*0}+Parch{*2}$$
+$logodds4 =4.36+(-2.64)*0+(-1.42)*0+(-2.65)*1+(-0.04)*4+(-0.37)*0+(-0.04)*2=1.5$\  
+ 
+$odds4<- exp(logodds4)=4.3$\ 
+
+$Sueprobability2= odds2/(1+ odds2)*100=81%$\ 
+
+# Conclusion
+
+We established that the probability of survival for kate was better without
+Leonardo 70% than with him 62%. Additionally, the survival probability for sue reduces by
+1% with the presence of Leonardo (from 82% to 81%). According to our model, sex was an
+influential predictor of survival while spouse/sibling and parent had little influence. The
+influence of sex was 0.21(21%), Spouse/Sib (0.01 or 1%) and parent/child (0%)
+```{r}
+tab_model(Mod1,CSS = list(css.depvarhead = '+color: red;',css.firsttablecol = 'font-weight: bold;',css.summary = 'color: blue;',css.est=TRUE))
+```
+
