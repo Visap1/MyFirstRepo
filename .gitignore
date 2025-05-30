@@ -2,3 +2,48 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# Ignore Python compiled files
+*.pyc
+__pycache__/
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+
+# Ignore editor and IDE files
+.DS_Store
+*.swp
+*.swo
+*.swn
+.vscode/
+.idea/
+
+# Ignore build artifacts
+build/
+dist/
+
+# Include all Python files
+!*.py
+
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dll
+
+# Temporary files
+*.tmp
+*.swp
+
+# Logs
+*.log
+*.csv
+*.xls
+*.png
+
+# Virtual environment
+venv/
+env/
+
